@@ -6,16 +6,7 @@ Invoke-WebRequest -Uri $url -OutFile setup.ps1
 .\setup.ps1
 ```
 
-Powershell commands to disable Windows Defender
+Powershell commands to remove Windows Defender
 ```
-Set-MpPreference -DisableRealtimeMonitoring $true
-Set-MpPreference -DisableBehaviorMonitoring $true
-Set-MpPreference -DisableBlockAtFirstSeen $true
-Set-MpPreference -DisableIOAVProtection $true
-Set-MpPreference -DisablePrivacyMode $true
-Set-MpPreference -SignatureDisableUpdateOnStartupWithoutEngine $true
-Set-MpPreference -DisableArchiveScanning $true
-Set-MpPreference -DisableIntrusionPreventionSystem $true
-Set-MpPreference -DisableScriptScanning $true
-Set-MpPreference -SubmitSamplesConsent 2
+Uninstall-WindowsFeature -Name Windows-Defender
 ```
