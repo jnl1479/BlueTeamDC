@@ -1,4 +1,6 @@
 # BlueTeamDC
 ```
-Invoke-WebRequest -Uri https://raw.githubusercontent.com/ansible/ansible/devel/examples/scripts/ConfigureRemotingForAnsible.ps1 -UseBasicParsing | Invoke-Expression
+$url = "https://raw.githubusercontent.com/ansible/ansible-documentation/devel/examples/scripts/ConfigureRemotingForAnsible.ps1"
+Invoke-WebRequest -Uri $url -OutFile setup.ps1
+.\setup.ps1
 ```
