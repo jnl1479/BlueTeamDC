@@ -87,6 +87,7 @@ Try {
         
         Write-Status "Priority 2: Persistence CSV generated at $PersistFile" "Yellow"
     }
+} Catch { Log-Error "Priority 2 Tasks" $_ }
 
 # --- PRIORITY 3: MONITORING & LOGGING ---
 
