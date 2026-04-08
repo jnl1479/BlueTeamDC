@@ -62,20 +62,31 @@ Try {
     If (!(Get-NetFirewallRule -DisplayName $RuleName -ErrorAction SilentlyContinue)) {
         New-NetFirewallRule -DisplayName $RuleName -Direction Inbound -Action Block -Protocol TCP -LocalPort 4444,8080,1337,44444 -ErrorAction Stop | Out-Null
         Write-Status "Priority 2: C2 Port blocking rule established." "Yellow"
-    }
+    } Else { Write-Status "Priority 2: C2 Port blocking rule active." }
 
     # 6. SMB Hardening
     Set-SmbServerConfiguration -EnableSMB1Protocol $false -RequireSecuritySignature $true -Force -ErrorAction Stop
     Write-Status "Priority 2: SMBv1 Disabled and SMB Signing Required." "Yellow"
 
-    # 7. Persistence Hunt (Autoruns)
+# 7. Persistence Hunt (Autoruns) - Timestamped for continuous hunting
     If (Test-Path "$IR_Path\autorunsc.exe") {
-        If (!(Test-Path "$IR_Path\persistence.csv")) {
-            Start-Process -FilePath "$IR_Path\autorunsc.exe" -ArgumentList "-a * -c -m -accepteula" -RedirectStandardOutput "$IR_Path\persistence.csv" -Wait
-            Write-Status "Priority 2: Persistence CSV generated at $IR_Path\persistence.csv" "Yellow"
+        # Define and create the dedicated subfolder
+        $PersistFolder = "$IR_Path\Persistence_Logs"
+        If (!(Test-Path $PersistFolder)) { 
+            New-Item -ItemType Directory -Path $PersistFolder -Force | Out-Null 
         }
+
+        Write-Status "Priority 2: Running Autoruns... this may take a few seconds." "Yellow"
+        
+        # Grab the current time (e.g., 1435 for 2:35 PM)
+        $TimeMap = Get-Date -Format "HHmm"
+        $PersistFile = "$PersistFolder\persistence_$TimeMap.csv"
+        
+        # Run autoruns and pipe to the uniquely named file in the new folder
+        Start-Process -FilePath "$IR_Path\autorunsc.exe" -ArgumentList "-a * -c -m -accepteula" -RedirectStandardOutput $PersistFile -Wait
+        
+        Write-Status "Priority 2: Persistence CSV generated at $PersistFile" "Yellow"
     }
-} Catch { Log-Error "Priority 2 Tasks" $_ }
 
 # --- PRIORITY 3: MONITORING & LOGGING ---
 
