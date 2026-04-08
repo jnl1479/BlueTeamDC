@@ -1,10 +1,9 @@
 <#
 .SYNOPSIS
-    NTF Initial Hardening Script - Active Directory & DNS
+    NTF Initial Hardening Script - Rubric Aligned (Priority 1-3)
 .DESCRIPTION
     Automates rapid triage, network containment, and evidence gathering.
-    Explicitly disables Real-Time Protection for Grey Team compliance while 
-    leveraging Windows Defender Firewall for strict network isolation.
+    Aligned with Triage Decision Framework (Scenarios 2 & 3).
 #>
 
 $IR_Path = "C:\IR"
@@ -22,79 +21,74 @@ Function Log-Error ($Action, $Exception) {
     "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - $Action - $($Exception.Message)" | Out-File -FilePath $LogFile -Append
 }
 
-# --- 1. Establish IR Environment ---
+# --- PRIORITY 1: ESTABLISH ACCESS & VERIFY SERVICES ---
+
 Try {
+    # 1. Establish IR Environment
     If (!(Test-Path $IR_Path)) { New-Item -ItemType Directory -Path $IR_Path -Force | Out-Null }
-    
     If (!(Test-Path "$IR_Path\autorunsc.exe")) {
         If (Test-Path "$ScriptDir\sysinternals_tools.zip") {
             Expand-Archive -Path "$ScriptDir\sysinternals_tools.zip" -DestinationPath $IR_Path -Force
             Write-Status "Extracted Sysinternals Tools to $IR_Path" "Yellow"
         } Else { Write-Host "[!] Warning: sysinternals_tools.zip not found." -ForegroundColor Red }
-    } Else { Write-Status "Sysinternals tools ready." }
-} Catch { Log-Error "IR Environment Setup" $_ }
+    }
 
-# --- 2. Defender Compliance & Firewall Enforcement ---
-Try {
-    # Comply with Grey Team: Disable AV Real-Time Protection
-    Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
-    Write-Status "Grey Team Compliance: Real-Time Protection Disabled." "Yellow"
-
-    # Enforce Defender Firewall on all profiles (Domain, Private, Public)
-    Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled True -ErrorAction Stop
-    Write-Status "Windows Defender Firewall is ENABLED across all profiles." "Yellow"
-} Catch { Log-Error "Defender Compliance" $_ }
-
-# --- 3. Verify Containment Programming (Scored Services) ---
-Try {
+    # 2. Verify Scored Services (Rubric Priority 1)
     $CriticalServices = @("NTDS", "DNS", "Netlogon")
     Foreach ($Service in $CriticalServices) {
         $SvcStatus = Get-Service -Name $Service -ErrorAction SilentlyContinue
         If ($null -eq $SvcStatus) { Continue }
-        
         If ($SvcStatus.Status -ne "Running") {
             Start-Service -Name $Service -ErrorAction Stop
-            Write-Status "Service $Service was down and has been restarted." "Yellow"
-        } Else { Write-Status "Service $Service is Running." }
+            Write-Status "Priority 1: Service $Service was down and has been restarted." "Yellow"
+        } Else { Write-Status "Priority 1: Service $Service is Running." }
     }
-} Catch { Log-Error "Service Verification" $_ }
+} Catch { Log-Error "Priority 1 Tasks" $_ }
 
-# --- 4. Automated Port Hardening (Rule #8 Compliant) ---
+# --- PRIORITY 2: URGENT CONTAINMENT & HARDENING ---
+
 Try {
+    # 3. Audit Domain Admins (Scenario 3 Compliance)
+    net group "Domain Admins" /domain > "$IR_Path\DA_Audit.txt" 2>$null
+    Write-Status "Priority 2: Domain Admins dumped to $IR_Path\DA_Audit.txt for review." "Yellow"
+
+    # 4. Defender Compliance & Firewall Enforcement
+    Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
+    Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled True -ErrorAction Stop
+    Write-Status "Priority 2: Real-Time AV Disabled. Defender Firewall ENABLED." "Yellow"
+
+    # 5. Automated Port Hardening (Block C2)
     $RuleName = "NTF_Block_C2"
     If (!(Get-NetFirewallRule -DisplayName $RuleName -ErrorAction SilentlyContinue)) {
         New-NetFirewallRule -DisplayName $RuleName -Direction Inbound -Action Block -Protocol TCP -LocalPort 4444,8080,1337,44444 -ErrorAction Stop | Out-Null
-        Write-Status "Defender Firewall: C2 Port blocking rule established." "Yellow"
-    } Else { Write-Status "Defender Firewall: C2 Port blocking rule active." }
-} Catch { Log-Error "Port Hardening" $_ }
+        Write-Status "Priority 2: C2 Port blocking rule established." "Yellow"
+    }
 
-# --- 5. Automated SMB Hardening ---
-Try {
+    # 6. SMB Hardening
     Set-SmbServerConfiguration -EnableSMB1Protocol $false -RequireSecuritySignature $true -Force -ErrorAction Stop
-    Write-Status "SMBv1 Disabled and SMB Signing Required." "Yellow"
-} Catch { Log-Error "SMB Hardening" $_ }
+    Write-Status "Priority 2: SMBv1 Disabled and SMB Signing Required." "Yellow"
 
-# --- 6. Automated Persistence Hunt (Autoruns) ---
-Try {
+    # 7. Persistence Hunt (Autoruns)
     If (Test-Path "$IR_Path\autorunsc.exe") {
         If (!(Test-Path "$IR_Path\persistence.csv")) {
-            Write-Status "Running Autoruns... this may take a few seconds." "Yellow"
             Start-Process -FilePath "$IR_Path\autorunsc.exe" -ArgumentList "-a * -c -m -accepteula" -RedirectStandardOutput "$IR_Path\persistence.csv" -Wait
-            Write-Status "Persistence CSV generated at $IR_Path\persistence.csv" "Yellow"
-        } Else { Write-Status "Persistence CSV already exists. Skipping." }
+            Write-Status "Priority 2: Persistence CSV generated at $IR_Path\persistence.csv" "Yellow"
+        }
     }
-} Catch { Log-Error "Persistence Hunt" $_ }
+} Catch { Log-Error "Priority 2 Tasks" $_ }
 
-# --- 7. Start Packet Capture (Rule #5 Compliant) ---
+# --- PRIORITY 3: MONITORING & LOGGING ---
+
 Try {
+    # 8. Start Packet Capture
     If ((pktmon status) -match "Running") {
-        Write-Status "Pktmon is already actively capturing traffic."
+        Write-Status "Priority 3: Pktmon is already actively capturing traffic."
     } Else {
         pktmon filter add -p 4444 8080 1337 | Out-Null
         pktmon start --etw -f $IR_Path\capture.etl | Out-Null
-        Write-Status "Packet capture initiated at $IR_Path\capture.etl" "Yellow"
+        Write-Status "Priority 3: Packet capture initiated at $IR_Path\capture.etl" "Yellow"
     }
-} Catch { Log-Error "Packet Capture" $_ }
+} Catch { Log-Error "Priority 3 Tasks" $_ }
 
 Write-Host "=================================================" -ForegroundColor Cyan
 Write-Host " HARDENING COMPLETE. BEGIN HUMAN ANALYSIS.       " -ForegroundColor Cyan
