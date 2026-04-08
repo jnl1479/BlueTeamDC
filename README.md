@@ -34,4 +34,5 @@ The script is designed to provide immediate visual feedback. Do not close the wi
 Once the script finishes:
 1. Open File Explorer and navigate to `C:\IR`.
 2. Open `persistence.csv` to identify backdoor registry keys or scheduled tasks established by the Red Team.
+  `Import-Csv C:\IR\Persistence_Logs\persistence_1435.csv | Out-GridView`
 3. Launch `procexp.exe` to begin manually hunting for malicious processes hiding as legitimate Windows services.
