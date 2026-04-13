@@ -92,13 +92,24 @@ Try {
 # --- PRIORITY 3: MONITORING & LOGGING ---
 
 Try {
-    # 8. Start Packet Capture
-    If ((pktmon status) -match "Running") {
-        Write-Status "Priority 3: Pktmon is already actively capturing traffic."
+    # 8. Network Monitoring (Pktmon) - Scorched Earth Method
+    Write-Status "Priority 3: Initializing Packet Capture..." "Yellow"
+    
+    # Force stop any hung or broken background sessions (silently)
+    pktmon stop | Out-Null
+    
+    # Clear any weird filters that might cause it to crash
+    pktmon filter remove | Out-Null
+    
+    # Start a fresh capture bound to all network adapters, saving directly to C:\IR
+    pktmon start --capture --comp all --file-name "$IR_Path\capture.etl" | Out-Null
+    
+    # Verify it actually started
+    $PktStatus = pktmon status
+    If ($PktStatus -match "Status:\s+Running") {
+        Write-Status "Priority 3: Pktmon actively capturing to $IR_Path\capture.etl" "Green"
     } Else {
-        pktmon filter add -p 4444 8080 1337 | Out-Null
-        pktmon start --etw -f $IR_Path\capture.etl | Out-Null
-        Write-Status "Priority 3: Packet capture initiated at $IR_Path\capture.etl" "Yellow"
+        Write-Status "ERROR: Pktmon failed to start. Check manual execution." "Red"
     }
 } Catch { Log-Error "Priority 3 Tasks" $_ }
 
